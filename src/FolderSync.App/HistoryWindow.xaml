@@ -1,0 +1,62 @@
+<Window x:Class="FolderSync.App.HistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="运行历史" Width="980" Height="560" MinWidth="760" MinHeight="380"
+        Icon="assets/app.ico" WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock x:Name="TxtTitle" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+            <Button DockPanel.Dock="Right" Content="导出 CSV" Padding="14,5" Click="ExportCsv_Click"
+                    ToolTip="把当前显示的全部历史记录导出为 CSV 文件（UTF-8）"/>
+        </DockPanel>
+
+        <DataGrid Grid.Row="1" x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True"
+                  SelectionMode="Single" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="{DynamicResource BadgeGrayBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                  RowHeight="30" FontSize="12.5" SelectionChanged="Grid_SelectionChanged"
+                  MouseDoubleClick="Grid_MouseDoubleClick">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="开始时间" Width="150" Binding="{Binding StartedText}"/>
+                <DataGridTextColumn Header="触发" Width="76" Binding="{Binding TriggerText}"/>
+                <DataGridTemplateColumn Header="状态" Width="82">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" Margin="6,0,0,0"
+                                       Foreground="{Binding StatusBrush}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="复制" Width="60" Binding="{Binding CopiedFiles}"/>
+                <DataGridTextColumn Header="删除" Width="60" Binding="{Binding DeletedFiles}"/>
+                <DataGridTextColumn Header="移动" Width="60" Binding="{Binding MovedFiles}"/>
+                <DataGridTextColumn Header="失败" Width="60" Binding="{Binding FailedFiles}"/>
+                <DataGridTextColumn Header="跳过" Width="60" Binding="{Binding SkippedFiles}"/>
+                <DataGridTextColumn Header="重试成功" Width="74" Binding="{Binding RetriedOk}"/>
+                <DataGridTextColumn Header="增量省" Width="86" Binding="{Binding DeltaSavedText}"/>
+                <DataGridTextColumn Header="耗时" Width="70" Binding="{Binding DurationText}"/>
+                <DataGridTextColumn Header="均速" Width="90" Binding="{Binding SpeedText}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- 侧栏详情：选中行 -->
+        <Border Grid.Row="2" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                CornerRadius="6" Padding="10" Margin="0,10,0,0" MaxHeight="150">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock x:Name="TxtDetail" FontSize="12" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap"
+                               Text="双击任一行查看详情；此处显示错误信息与失败明细。"/>
+                    <StackPanel x:Name="PnlReport" Orientation="Horizontal" Visibility="Collapsed" Margin="0,6,0,0">
+                        <Button Content="打开运行报告" Padding="10,3" Margin="0,0,8,0" Click="OpenReport_Click"/>
+                        <Button Content="打开失败明细" Padding="10,3" Click="OpenFailed_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

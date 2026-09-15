@@ -1,0 +1,38 @@
+bin/
+obj/
+publish/
+*.db
+*.db-shm
+*.db-wal
+db-backup-*/
+.backup/
+__pycache__/
+*.log
+
+# tests/ 下的杂物一律不入库；活的 E2E 工具在 tests/e2e/ 白名单放行（2026-09-12 分类清理）
+tests/*
+!tests/FolderSync.SmokeTest/
+!tests/e2e/
+tests/*.png
+tests/*.bmp
+# v1.1 UI 重设计施工期的探针输出与截图（材料性目录，仅保留 logo 生成脚本）
+ui-redesign/*
+!ui-redesign/make_logo.py
+
+# 2026-09-09 review 审查验证程序（临时产物，结论见审查报告）
+review-verify/
+tmp/
+
+# 发布产物二进制不入库（2026-09-16 多平台重写；历史 zip 留在 master 历史不回溯清理）
+release/*.zip
+
+# 发布产物二进制不入库
+release/*.zip
+
+# 内部工作文档不上远端（2026-09-16 拍板：审查报告/施工方案/进度文档仅留本地完整历史）
+review-*/
+docs/
+PROGRESS.md
+ui-redesign/
+调研与施工方案.md
+v1.*-施工方案*.md

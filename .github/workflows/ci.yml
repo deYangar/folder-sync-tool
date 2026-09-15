@@ -1,0 +1,35 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  # 现阶段代码为 net8.0-windows，仅 Windows 可完整构建与跑测。
+  # M1 Core 跨平台化落地后，逐步放开 ubuntu / ubuntu-24.04-arm / macos job（见 docs/multi-platform/rewrite-plan.md §7.2/§8.5）。
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 构建
+        run: dotnet build FolderSync.sln -c Release
+
+      # usn/diskfull 需提权（USN 卷句柄/VHD），CI 非提权环境不跑；
+      # 无参默认路由 = RunSmoke()，其余为非提权可跑套件。
+      - name: SmokeTest 非提权全套件
+        shell: pwsh
+        run: |
+          Set-Location tests/FolderSync.SmokeTest
+          Write-Host '=== smoke(默认) ==='
+          dotnet run -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::smoke 套件失败'; exit 1 }
+          $suites = @('twoway','fixreg','versionrepo','delta','cancel','retry','backup','move','caseconflict','conflictcopy','verify','schedule','report','override','parallel','safety')
+          foreach ($s in $suites) {
+            Write-Host "=== $s ==="
+            dotnet run -c Release --no-build -- $s
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error::套件 $s 失败（详见上方输出）"; exit 1 }
+          }
+          Write-Host '全部非提权套件通过'

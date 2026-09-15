@@ -1,0 +1,70 @@
+<Window x:Class="FolderSync.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置" Width="520" MinWidth="500"
+        SizeToContent="Height"
+        Icon="assets/app.ico"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== 启动 ===== -->
+        <Border Grid.Row="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+            <StackPanel>
+                <TextBlock Text="启动" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,0,0,4"/>
+                <CheckBox x:Name="ChkAutostart" Content="开机自启（登录后静默驻留托盘）" Margin="0,6,0,0"
+                          Checked="ChkAutostart_Changed" Unchecked="ChkAutostart_Changed"/>
+                <TextBlock Text="往注册表 HKCU Run 写自启项：Windows 登录后自动拉起 FolderSync。任务何时同步由各任务的「启用+触发方式」决定，与此开关无关"
+                           FontSize="11.5" Foreground="{DynamicResource TextTertiary}" Margin="24,3,0,0" TextWrapping="Wrap"/>
+                <CheckBox x:Name="ChkAutostartMinimized" Content="自启时最小化" Margin="0,10,0,0"
+                          Checked="ChkAutostartMinimized_Changed" Unchecked="ChkAutostartMinimized_Changed"/>
+                <TextBlock Text="开机自启拉起时不显示主窗口，直接收进系统托盘后台运行"
+                           FontSize="11.5" Foreground="{DynamicResource TextTertiary}" Margin="24,3,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ===== 显示 ===== -->
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,10,0,0">
+            <StackPanel>
+                <TextBlock Text="显示" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,0,0,4"/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="主题" VerticalAlignment="Center" FontSize="13"/>
+                    <ComboBox x:Name="CmbTheme" Width="150" SelectedIndex="0" Margin="8,0,0,0" SelectionChanged="CmbTheme_Changed"
+                              ToolTip="跟随系统：Windows 深浅色模式切换时即时跟随。改动立即生效（无需重启）">
+                        <ComboBoxItem Content="跟随系统"/>
+                        <ComboBoxItem Content="浅色"/>
+                        <ComboBoxItem Content="深色"/>
+                    </ComboBox>
+                </StackPanel>
+                <CheckBox x:Name="ChkShowIcons" Content="显示图标和缩略图（关闭后只显示通用图标，节省系统资源）" Margin="0,10,0,0"
+                          Checked="ChkShowIcons_Changed" Unchecked="ChkShowIcons_Changed"/>
+                <TextBlock Text="开启：文件按系统关联显示类型图标（exe 显示自身图标），图片/视频等显示内容缩略图。关闭：全部用通用文档图标，不再查询系统图标与提取缩略图；关闭本窗口立即生效"
+                           FontSize="11.5" Foreground="{DynamicResource TextTertiary}" Margin="24,3,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ===== 数据维护 ===== -->
+        <Border Grid.Row="2" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,10,0,0" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="数据维护" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,0,0,4"/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button x:Name="BtnClearBaseline" Content="清理基线索引" Padding="14,5" Click="BtnClearBaseline_Click"
+                            ToolTip="清空块级增量同步的基线缓存（全部任务，不影响两侧文件内容）；下次同步大文件时自动重建，首轮增量多读一遍目标"/>
+                    <TextBlock x:Name="TxtBaselineInfo" FontSize="11.5" Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </StackPanel>
+                <TextBlock Text="基线索引是块级增量同步的缓存（约 50KB / GB 同步量，在程序目录 sync-index 下）。日常无需清理：脏基线自动拦截、删除文件自动清条目、损坏自动重建。仅在需要回收空间或排查问题时使用"
+                           FontSize="11.5" Foreground="{DynamicResource TextTertiary}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ===== 底部按钮 ===== -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="BtnClose" Content="关闭" IsCancel="True" Padding="20,5"/>
+        </StackPanel>
+    </Grid>
+</Window>
