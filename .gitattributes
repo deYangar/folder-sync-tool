@@ -1,0 +1,10 @@
+# CI/打包脚本必须 LF（CRLF 的 shell 脚本在 Linux runner 直接炸：#!/usr/bin/env bash）
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.iss text eol=crlf
+*.cs text eol=lf
+*.csproj text eol=crlf
+*.sln text eol=crlf
+*.axaml text eol=lf
+*.manifest text eol=crlf

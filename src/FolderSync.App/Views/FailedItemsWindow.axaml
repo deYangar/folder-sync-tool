@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FolderSync.App.ViewModels"
+        xmlns:core="clr-namespace:FolderSync.Core;assembly=FolderSync.Core"
+        x:Class="FolderSync.App.Views.FailedItemsWindow"
+        x:DataType="vm:FailedItemsViewModel"
+        Title="上次失败明细" Width="800" Height="480" MinWidth="560" MinHeight="300"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="*,Auto" Margin="12">
+        <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="True"
+                  ItemsSource="{Binding Items}" AutomationProperties.Name="失败明细列表">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="动作" Width="110">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="core:FailedItem">
+                        <TextBlock Text="{Binding Action}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="相对路径" Width="260">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="core:FailedItem">
+                        <TextBlock Text="{Binding RelativePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="错误" Width="*">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="core:FailedItem">
+                        <TextBlock Text="{Binding Error}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" Spacing="8">
+            <Button Classes="primary" Content="重试失败项" Padding="16,5" Click="BtnRetry_Click"
+                    AutomationProperties.Name="重试失败项"/>
+            <Button Content="打开明细文件" Padding="12,5" Click="BtnLog_Click"/>
+            <TextBlock Text="{Binding Tip}" Foreground="{DynamicResource TextTertiary}" FontSize="11.5"
+                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <Button Content="关闭" Padding="12,5" HorizontalAlignment="Right" Click="Close_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

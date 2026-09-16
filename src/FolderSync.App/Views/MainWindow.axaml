@@ -1,0 +1,429 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FolderSync.App.ViewModels"
+        xmlns:as="clr-namespace:FolderSync.App.Services"
+        x:Class="FolderSync.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="FolderSync — 本地文件夹同步" Height="780" Width="1200"
+        MinHeight="560" MinWidth="960"
+        WindowStartupLocation="CenterScreen">
+
+    <!-- ============ 状态点/步骤/动作字形色（主题感知） ============ -->
+    <Window.Styles>
+        <Style Selector="Ellipse[Tag=st-run]"><Setter Property="Fill" Value="{DynamicResource StatusRun}"/></Style>
+        <Style Selector="Ellipse[Tag=st-warn]"><Setter Property="Fill" Value="{DynamicResource StatusWarn}"/></Style>
+        <Style Selector="Ellipse[Tag=st-idle]"><Setter Property="Fill" Value="{DynamicResource StatusIdle}"/></Style>
+        <Style Selector="Ellipse[Tag=st-disabled]"><Setter Property="Fill" Value="{DynamicResource StatusDisabled}"/></Style>
+        <Style Selector="Ellipse[Tag=st-media]"><Setter Property="Fill" Value="{DynamicResource StatusMedia}"/></Style>
+
+        <Style Selector="TextBlock[Tag=stepactive]"><Setter Property="Foreground" Value="{DynamicResource Accent}"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+        <Style Selector="TextBlock[Tag=stepdone]"><Setter Property="Foreground" Value="{DynamicResource StepDone}"/></Style>
+
+        <Style Selector="ProgressBar[Tag=blue]"><Setter Property="Foreground" Value="{DynamicResource Accent}"/></Style>
+        <Style Selector="ProgressBar[Tag=green]"><Setter Property="Foreground" Value="{DynamicResource Success}"/></Style>
+        <Style Selector="ProgressBar[Tag=orange]"><Setter Property="Foreground" Value="{DynamicResource WarningDeep}"/></Style>
+
+        <Style Selector="TextBlock[Tag=green]"><Setter Property="Foreground" Value="{DynamicResource Success}"/></Style>
+        <Style Selector="TextBlock[Tag=blue]"><Setter Property="Foreground" Value="{DynamicResource Accent}"/></Style>
+        <Style Selector="TextBlock[Tag=red]"><Setter Property="Foreground" Value="{DynamicResource Danger}"/></Style>
+        <Style Selector="TextBlock[Tag=orange]"><Setter Property="Foreground" Value="{DynamicResource Warning}"/></Style>
+        <Style Selector="TextBlock[Tag=teal]"><Setter Property="Foreground" Value="{DynamicResource Teal}"/></Style>
+        <Style Selector="TextBlock[Tag=skipped]"><Setter Property="Foreground" Value="{DynamicResource TextTertiary}"/></Style>
+
+        <Style Selector="DataGridRow[Tag=conflict]">
+            <Setter Property="Background" Value="{DynamicResource WarningBg}"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- ============ 工具栏 ============ -->
+        <Border Grid.Row="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1" Padding="12,9">
+            <StackPanel Orientation="Horizontal">
+                <Button Classes="iconbtn" Command="{Binding CmdNew}" AutomationProperties.Name="新建任务">新建任务</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdEdit}" AutomationProperties.Name="编辑">编辑</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdDelete}" AutomationProperties.Name="删除" Foreground="{DynamicResource Danger}">删除</Button>
+                <Border Width="1" Height="22" Background="{DynamicResource Separator}" Margin="8,4,14,0"/>
+                <Button Classes="primary" Margin="0,0,8,0" Command="{Binding CmdAnalyze}" AutomationProperties.Name="分析"
+                        IsEnabled="{Binding !BusyButtons}">分析</Button>
+                <Button Classes="primary" Margin="0,0,8,0" Command="{Binding CmdSync}" AutomationProperties.Name="同步"
+                        IsEnabled="{Binding !BusyButtons}">同步</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdCancel}" AutomationProperties.Name="停止"
+                        ToolTip.Tip="停掉正在执行的这一轮同步（手动/实时/定时触发都有效；不改变任务的监听状态）">停止</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdVerify}" AutomationProperties.Name="校验"
+                        IsEnabled="{Binding !BusyButtons}"
+                        ToolTip.Tip="对当前任务跑一轮只读深度校验（全量）：逐文件比对两侧内容哈希，检出磁盘静默损坏（位腐）。发现项标记待裁决，不自动覆盖">校验</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdToggleWatch}" AutomationProperties.Name="实时监控开关"
+                        IsVisible="{Binding WatchButtonVisible}" Content="{Binding WatchButtonText}"/>
+                <Border Width="1" Height="22" Background="{DynamicResource Separator}" Margin="8,4,8,0"/>
+                <Button Classes="iconbtn" Command="{Binding CmdOpenVersions}" AutomationProperties.Name="浏览版本库"
+                        ToolTip.Tip="查看历史版本：按文件列出版本，可还原到原位置 / 另存 / 删除 / 清空全部">浏览版本库</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdFailedItems}" AutomationProperties.Name="上次失败明细"
+                        ToolTip.Tip="查看最近一轮执行失败明细并重试">上次失败明细</Button>
+                <Button Classes="iconbtn" Command="{Binding CmdHistory}" AutomationProperties.Name="历史"
+                        ToolTip.Tip="查看本任务最近 100 轮运行历史，可导出 CSV、打开轮末报告">历史</Button>
+                <Border Width="1" Height="22" Background="{DynamicResource Separator}" Margin="8,4,14,0"/>
+                <Button Classes="iconbtn" Command="{Binding CmdSettings}" AutomationProperties.Name="设置"
+                        ToolTip.Tip="软件设置：开机自启、自启时最小化、主题、图标">设置</Button>
+            </StackPanel>
+        </Border>
+
+        <!-- ============ 主体 ============ -->
+        <Grid Grid.Row="1" Margin="10" ColumnDefinitions="248,*">
+            <!-- 左：任务列表 -->
+            <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                    BorderThickness="1" CornerRadius="8" Margin="0,0,8,0">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Grid.Row="0" Text="任务" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextTertiary}" Margin="14,10,0,6"/>
+                    <ListBox Grid.Row="1" Classes="joblist" x:Name="LstJobs"
+                             ItemsSource="{Binding Items}"
+                             SelectedItem="{Binding Selected}"
+                             DoubleTapped="LstJobs_DoubleTapped"
+                             AutomationProperties.Name="任务列表">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EngineItem">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="9" Height="9" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                 Tag="{Binding StatusClasses}"
+                                                 ToolTip.Tip="{Binding StatusText}"/>
+                                        <TextBlock Text="{Binding Job.Name}" FontWeight="SemiBold" FontSize="13.5"
+                                                   TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextTertiary}"
+                                               FontSize="11.5" Margin="16,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- 右：详情 -->
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+                <!-- 文件夹卡片 -->
+                <Grid Grid.Row="0" Margin="2,2,2,8" ColumnDefinitions="*,96,*">
+                    <Border Grid.Column="0" Background="{DynamicResource TreeAltBg}" BorderBrush="{DynamicResource LeftBand}"
+                            BorderThickness="1.5" CornerRadius="9" Padding="12,9">
+                        <DockPanel>
+                            <TextBlock Text="📁" FontSize="24" VerticalAlignment="Center" Margin="0,0,10,0" DockPanel.Dock="Left"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource LeftBandText}"
+                                           TextTrimming="CharacterEllipsis" Text="{Binding LeftPath}"
+                                           ToolTip.Tip="{Binding LeftPath}"/>
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondary}" Margin="0,3,0,0"
+                                           TextTrimming="CharacterEllipsis" Text="{Binding LeftMeta}"
+                                           ToolTip.Tip="{Binding LeftPath}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DirArrow}" FontSize="28" FontWeight="Bold"
+                                   Foreground="{DynamicResource Accent}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding DirText}" FontSize="11" Foreground="{DynamicResource TextTertiary}"
+                                   HorizontalAlignment="Center" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <Border Grid.Column="2" Background="{DynamicResource SuccessBg}" BorderBrush="{DynamicResource SuccessBg}"
+                            BorderThickness="1.5" CornerRadius="9" Padding="12,9">
+                        <DockPanel>
+                            <TextBlock Text="📁" FontSize="24" VerticalAlignment="Center" Margin="0,0,10,0" DockPanel.Dock="Left"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource Success}"
+                                           TextTrimming="CharacterEllipsis" Text="{Binding RightPath}"
+                                           ToolTip.Tip="{Binding RightPath}"/>
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource Success}" Margin="0,3,0,0"
+                                           TextTrimming="CharacterEllipsis" Text="{Binding RightMeta}"
+                                           ToolTip.Tip="{Binding RightPath}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+
+                <!-- 筛选标签 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="2,0,2,8">
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsAll, Mode=OneWay}" Click="FilterAll_Click"
+                                 AutomationProperties.Name="筛选-全部"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="☰ 全部" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource BadgeGrayBg}"><TextBlock FontSize="11" Foreground="{DynamicResource TextSecondary}" Text="{Binding CntAll}"/></Border></StackPanel></RadioButton>
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsChanged, Mode=OneWay}" Click="FilterChanged_Click"
+                                 AutomationProperties.Name="筛选-所有变更"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="⇄ 所有变更" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource RightBand}"><TextBlock FontSize="11" Foreground="{DynamicResource RightBandText}" Text="{Binding CntChanged}"/></Border></StackPanel></RadioButton>
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsCreate, Mode=OneWay}" Click="FilterCreate_Click"
+                                 AutomationProperties.Name="筛选-新建复制"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="⇢ 新建复制" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource SuccessBg}"><TextBlock FontSize="11" Foreground="{DynamicResource Success}" Text="{Binding CntCreate}"/></Border></StackPanel></RadioButton>
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsUpdate, Mode=OneWay}" Click="FilterUpdate_Click"
+                                 AutomationProperties.Name="筛选-更新覆盖"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="⟳ 更新覆盖" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource RowHoverBg}"><TextBlock FontSize="11" Foreground="{DynamicResource Accent}" Text="{Binding CntUpdate}"/></Border></StackPanel></RadioButton>
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsDelete, Mode=OneWay}" Click="FilterDelete_Click"
+                                 AutomationProperties.Name="筛选-删除"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="✕ 删除" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource DangerBg}"><TextBlock FontSize="11" Foreground="{DynamicResource Danger}" Text="{Binding CntDelete}"/></Border></StackPanel></RadioButton>
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsConflict, Mode=OneWay}" Click="FilterConflict_Click"
+                                 AutomationProperties.Name="筛选-冲突"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="⚠ 冲突" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource ConflictRowBg}"><TextBlock FontSize="11" Foreground="{DynamicResource WarningDeep}" Text="{Binding CntConflict}"/></Border></StackPanel></RadioButton>
+                    <RadioButton Classes="filtertab" GroupName="PlanFilter" IsChecked="{Binding FilterIsSkip, Mode=OneWay}" Click="FilterSkip_Click"
+                                 AutomationProperties.Name="筛选-已跳过"><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="⏸ 已跳过" VerticalAlignment="Center"/><Border Classes="badge" Background="{DynamicResource BadgeGrayBg}"><TextBlock FontSize="11" Foreground="{DynamicResource TextTertiary}" Text="{Binding CntSkip}"/></Border></StackPanel></RadioButton>
+                </StackPanel>
+
+                <!-- 树形对照表 -->
+                <Border Grid.Row="2" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="8" Margin="2,0">
+                    <DataGrid x:Name="GridPlan" AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserSortColumns="False" CanUserResizeColumns="True" SelectionMode="Single" HeadersVisibility="Column"
+                              FontFamily="Microsoft YaHei UI"
+                              BorderThickness="0" RowHeight="28"
+                              ItemsSource="{Binding Rows}"
+                              SelectionChanged="GridPlan_SelectionChanged"
+                              AutomationProperties.Name="对照表">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="项目（相对路径）" Width="*" MinWidth="240">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:PlanTreeNode">
+                                        <StackPanel Orientation="Horizontal" Spacing="0">
+                                            <Border Width="{Binding IndentWidth}"/>
+                                            <ToggleButton Classes="treetoggle"
+                                                          IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                          Click="Expander_Click"
+                                                          IsVisible="{Binding HasChildren}"
+                                                          HorizontalAlignment="Left">
+                                                <TextBlock Text="▸" FontSize="8" Foreground="{DynamicResource TextTertiary}"/>
+                                            </ToggleButton>
+                                            <Border Width="16" IsVisible="{Binding IsLeaf}"/>
+                                            <Image Source="{Binding Icon}" Width="18" Height="18"
+                                                   VerticalAlignment="Center" Stretch="Uniform"/>
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" FontSize="12.5"
+                                                       Tag="{Binding NameClasses}"
+                                                       Cursor="Hand"
+                                                       ToolTip.Tip="{Binding FullPath}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="左·大小" Width="104">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:PlanTreeNode">
+                                            <Border Background="{DynamicResource LeftBand}" Padding="8,0" VerticalAlignment="Stretch">
+                                                <TextBlock Text="{Binding LeftSizeText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           FontSize="12.5" Foreground="{DynamicResource LeftBandText}"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="左·日期" Width="136">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:PlanTreeNode">
+                                            <Border Background="{DynamicResource LeftBand}" Padding="8,0" VerticalAlignment="Stretch">
+                                                <TextBlock Text="{Binding LeftMtimeText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           FontSize="12.5" Foreground="{DynamicResource LeftBandText}"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="左侧" Width="104">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:PlanTreeNode">
+                                        <Grid>
+                                            <Button Classes="cellaction" IsVisible="{Binding IsLeaf}"
+                                                    Click="LeftAction_Click" Tag="{Binding}"
+                                                    ToolTip.Tip="点击：跳过 / 恢复；冲突行点此=保留左侧">
+                                                <TextBlock Text="{Binding LeftActionGlyph}" FontSize="12.5" FontWeight="Bold"
+                                                           Tag="{Binding LeftActionClass}"/>
+                                            </Button>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsVisible="{Binding HasChildren}">
+                                                <TextBlock FontSize="12.5" FontWeight="SemiBold" Classes="blue"
+                                                           IsVisible="{Binding HasLeftIn}" Text="{Binding AggLeftInText}"/>
+                                                <TextBlock FontSize="12.5" FontWeight="SemiBold" Classes="red"
+                                                           IsVisible="{Binding HasLeftDel}" Text="{Binding AggLeftDelText}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="右侧" Width="104">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:PlanTreeNode">
+                                        <Grid>
+                                            <Button Classes="cellaction" IsVisible="{Binding IsLeaf}"
+                                                    Click="RightAction_Click" Tag="{Binding}"
+                                                    ToolTip.Tip="点击：跳过 / 恢复；冲突行点此=保留右侧">
+                                                <TextBlock Text="{Binding RightActionGlyph}" FontSize="12.5" FontWeight="Bold"
+                                                           Tag="{Binding RightActionClass}"/>
+                                            </Button>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsVisible="{Binding HasChildren}">
+                                                <TextBlock FontSize="12.5" FontWeight="SemiBold" Classes="green"
+                                                           IsVisible="{Binding HasRightIn}" Text="{Binding AggRightInText}"/>
+                                                <TextBlock FontSize="12.5" FontWeight="SemiBold" Classes="red"
+                                                           IsVisible="{Binding HasRightDel}" Text="{Binding AggRightDelText}"/>
+                                                <TextBlock FontSize="12.5" FontWeight="SemiBold" Classes="orange"
+                                                           IsVisible="{Binding HasConflict}" Text="{Binding AggConflictText}"/>
+                                                <TextBlock FontSize="12.5" FontWeight="SemiBold" Classes="teal"
+                                                           IsVisible="{Binding HasMove}" Text="{Binding AggMoveText}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="右·日期" Width="136">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:PlanTreeNode">
+                                            <Border Background="{DynamicResource RightBand}" Padding="8,0" VerticalAlignment="Stretch">
+                                                <TextBlock Text="{Binding RightMtimeText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           FontSize="12.5" Foreground="{DynamicResource RightBandText}"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="右·大小" Width="104">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:PlanTreeNode">
+                                            <Border Background="{DynamicResource RightBand}" Padding="8,0" VerticalAlignment="Stretch">
+                                                <TextBlock Text="{Binding RightSizeText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           FontSize="12.5" Foreground="{DynamicResource RightBandText}"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="说明" Width="220">
+                                    <DataGridTemplateColumn.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold"
+                                                       FontFamily="Microsoft YaHei UI"
+                                                       Foreground="{DynamicResource BadgeGrayFg}"
+                                                       TextTrimming="None" TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.HeaderTemplate>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:PlanTreeNode">
+                                            <TextBlock Text="{Binding NoteText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+
+                <!-- 冲突裁决栏 -->
+                <Border Grid.Row="3" Background="{DynamicResource WarningBg}" BorderBrush="{DynamicResource WarningBg}"
+                        BorderThickness="1" CornerRadius="7" Padding="10,7" Margin="2,8,2,0"
+                        IsVisible="{Binding HasConflicts}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚠ 存在待裁决冲突：选中行后点行内图标，或用下方按钮 →" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource WarningDeep}" FontSize="12.5" Margin="0,0,10,0"/>
+                        <Button Content="保留左侧" Padding="12,4" Margin="0,0,6,0" Command="{Binding CmdKeepLeft}"/>
+                        <Button Content="保留右侧" Padding="12,4" Margin="0,0,6,0" Command="{Binding CmdKeepRight}"/>
+                        <Button Content="跳过" Padding="12,4" Margin="0,0,10,0" Command="{Binding CmdSkipConflict}"/>
+                        <Button Classes="primary" Content="执行已裁决项" Padding="14,4" Command="{Binding CmdResolveRun}"
+                                IsEnabled="{Binding !BusyButtons}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 进度 -->
+                <Border Grid.Row="4" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="2,8,2,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,7" x:Name="StepPanel">
+                            <TextBlock FontSize="12" Tag="{Binding Step0Classes}" Text="{Binding StepTexts[0]}" VerticalAlignment="Center"/>
+                            <TextBlock Text="—" FontSize="12" Foreground="{DynamicResource ProgressBg}" Margin="10,0" VerticalAlignment="Center"/>
+                            <TextBlock FontSize="12" Tag="{Binding Step1Classes}" Text="{Binding StepTexts[1]}" VerticalAlignment="Center"/>
+                            <TextBlock Text="—" FontSize="12" Foreground="{DynamicResource ProgressBg}" Margin="10,0" VerticalAlignment="Center"/>
+                            <TextBlock FontSize="12" Tag="{Binding Step2Classes}" Text="{Binding StepTexts[2]}" VerticalAlignment="Center"/>
+                            <TextBlock Text="—" FontSize="12" Foreground="{DynamicResource ProgressBg}" Margin="10,0" VerticalAlignment="Center"/>
+                            <TextBlock FontSize="12" Tag="{Binding Step3Classes}" Text="{Binding StepTexts[3]}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ProgressBar x:Name="PbProgress" Height="14" Minimum="0" Maximum="100"
+                                     Value="{Binding ProgressValue}"
+                                     IsIndeterminate="{Binding ProgressIndeterminate}"
+                                     Tag="{Binding ProgressColorClass}"
+                                     Background="{DynamicResource BadgeGrayBg}" BorderThickness="0"/>
+                        <TextBlock Margin="2,5,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                   TextTrimming="CharacterEllipsis" Text="{Binding ProgressText}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 日志 -->
+                <Border Grid.Row="5" Background="{DynamicResource LogBg}" CornerRadius="8" Margin="2,8,2,2" Height="92">
+                    <TextBox x:Name="TxtLog" IsReadOnly="True"
+                             FontFamily="{DynamicResource MonoFont}" FontSize="11.5"
+                             Background="Transparent" BorderThickness="0" Foreground="{DynamicResource LogFg}"
+                             Margin="6,4" TextWrapping="NoWrap"
+                             AcceptsReturn="True"
+                             Text="{Binding LogText, Mode=OneWay}"
+                             AutomationProperties.Name="日志区">
+                        <TextBox.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuItem Header="复制选中内容" Click="LogCopySelected_Click" InputGesture="Ctrl+C"/>
+                                <MenuItem Header="复制全部日志" Click="LogCopyAll_Click"/>
+                                <Separator/>
+                                <MenuItem Header="导出日志到文件…" Click="LogExport_Click"/>
+                                <MenuItem Header="清空日志" Click="LogClear_Click"/>
+                            </MenuFlyout>
+                        </TextBox.ContextFlyout>
+                    </TextBox>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ============ 状态栏 ============ -->
+        <Border Grid.Row="2" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                BorderThickness="0,1,0,0" Padding="10,5">
+            <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{DynamicResource BadgeGrayFg}"/>
+        </Border>
+    </Grid>
+</Window>
