@@ -1,0 +1,208 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
+using FolderSync.Core;
+
+namespace FolderSync.App;
+
+/// <summary>
+/// CLI 无头模式（v1.6 B4）：--run &lt;任务名&gt; / --run-all / --analyze &lt;任务名&gt; / --list——
+/// 不建主窗口不挂托盘，跑完即退，退出码供调度器/脚本复用。
+/// 与 GUI 实例并存：不走单例互斥（GUI 在跑时 CLI 照常工作；Db WAL 并发安全，
+/// 同任务并行跑会被引擎「正在运行中」挡——正是预期防重入语义）。
+/// 退出码：0=完全成功 / 3=部分失败 / 4=失败 / 5=任务名不存在 / 2=参数用法错。
+/// 输出：Windows GUI 子系统 AttachConsole(ATTACH_PARENT_PROCESS) 尽力打到调用方控制台；
+/// Unix stdout 天然可用（终端启动时直连）；无论成败都写 logs/cli/cli-&lt;时间戳&gt;.log（UTF-8）。
+/// </summary>
+internal static class Cli
+{
+#if WINDOWS
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+    private const int ATTACH_PARENT_PROCESS = -1;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetFileType(IntPtr hFile);
+    private const int STD_OUTPUT_HANDLE = -11;
+    private const uint FILE_TYPE_DISK = 1, FILE_TYPE_PIPE = 3;
+#endif
+
+    public const int ExitOk = 0, ExitUsage = 2, ExitPartial = 3, ExitFailed = 4, ExitNoSuchJob = 5;
+
+    /// <summary>args 命中 CLI 子集时执行并返回 true（exitCode 由 out 带出，调用方退出进程）。</summary>
+    public static bool TryRun(string[] args, out int exitCode)
+    {
+        exitCode = ExitOk;
+        // 只对已知 CLI 命令接管；其余 -- 参数（--minimized 自启 / --e2e 测试钩子）归 GUI 启动路径。
+        // 忽略大小写判定（与下方 cmd 的 ToLowerInvariant 同口径）：--LIST 被判非命令会静默拉起 GUI
+        if (args == null || args.Length == 0) return false;
+        if (args[0].ToLowerInvariant() is not ("--run" or "--run-all" or "--analyze" or "--list")) return false;
+
+        var log = new StringBuilder();
+        var stdout = AttachWriters();
+        void Say(string line)
+        {
+            log.AppendLine($"[{DateTime.Now:HH:mm:ss}] {line}");
+            try { stdout?.WriteLine(line); } catch { }
+        }
+
+        try
+        {
+            exitCode = Run(args, Say);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Say($"严重错误: {ex}");
+            exitCode = ExitFailed;
+            return true;
+        }
+        finally
+        {
+            stdout?.Flush();
+            WriteLogFile(log.ToString());
+        }
+    }
+
+    private static int Run(string[] args, Action<string> say)
+    {
+        var cmd = args[0].ToLowerInvariant();
+        using var db = new Db();
+        var jobs = db.GetJobs();
+
+        if (cmd == "--list")
+        {
+            say($"共 {jobs.Count} 个任务：");
+            foreach (var j in jobs)
+                say($"  {j.Name}  [{j.Direction}{(j.Enabled ? "" : "，已停用")}]  {j.LeftPath} ⇄ {j.RightPath}");
+            return ExitOk;
+        }
+
+        if (cmd == "--run-all")
+        {
+            if (jobs.Count == 0) { say("没有任务"); return ExitOk; }
+            int worst = ExitOk;
+            foreach (var j in jobs)
+            {
+                // 停用任务不参与自动同步（GUI 里 Enabled=false 的语义）；--run <名> 仍可显式单跑
+                if (!j.Enabled) { say($"跳过已停用任务: {j.Name}"); continue; }
+                var code = RunOne(j, db, execute: true, say);
+                if (code == ExitFailed) worst = ExitFailed;        // 失败最重
+                else if (code == ExitPartial && worst != ExitFailed) worst = ExitPartial;
+            }
+            return worst;
+        }
+
+        if (cmd is "--run" or "--analyze")
+        {
+            if (args.Length < 2) { say($"用法: FolderSync {cmd} <任务名>"); return ExitUsage; }
+            var job = jobs.FirstOrDefault(j => j.Name.Equals(args[1], StringComparison.OrdinalIgnoreCase));
+            if (job == null)
+            {
+                say($"任务不存在: {args[1]}（--list 查看全部任务名）");
+                return ExitNoSuchJob;
+            }
+            return RunOne(job, db, execute: cmd == "--run", say);
+        }
+
+        say($"未知参数: {args[0]}（支持 --run <任务名> / --run-all / --analyze <任务名> / --list）");
+        return ExitUsage;
+    }
+
+    private static int RunOne(SyncJob job, Db db, bool execute, Action<string> say)
+    {
+        say($"{(execute ? "同步" : "分析")}任务「{job.Name}」…");
+        var engine = new SyncEngine(job, db);   // 独立引擎：不经 JobManager（无补跑/触发器，CLI 就是执行器本身）
+        try
+        {
+            var (rec, plan) = engine.RunAsync(execute ? "cli" : "cli-analyze", execute: execute).GetAwaiter().GetResult();
+            say($"{(execute ? "同步" : "分析")}完成：状态 {rec.Status}，计划 {plan.Count} 项"
+                + (execute ? $"，成功 {rec.CopiedFiles}，失败 {rec.FailedFiles}，删除 {rec.DeletedFiles}"
+                    + (rec.MovedFiles > 0 ? $"，移动 {rec.MovedFiles}" : "")
+                    + (rec.RetriedOk > 0 ? $"，重试成功 {rec.RetriedOk}" : "")
+                    + (rec.DeltaSavedBytes > 0 ? $"，增量省 {Executor.FormatSize(rec.DeltaSavedBytes)}" : "") : ""));
+            if (!execute && plan.Count > 0)
+                foreach (var p in plan.Take(50))
+                    say($"  {p.ActionText}  {p.RelativePath}" + (p.Note.Length > 0 ? $"  ({p.Note})" : ""));
+            if (rec.FailedFiles > 0 && engine.LastFailedItems.Count > 0)
+            {
+                say($"失败明细（前 10 条，共 {engine.LastFailedTotal}）：");
+                foreach (var f in engine.LastFailedItems.Take(10))
+                    say($"  {f.Action}  {f.RelativePath}  {f.Error}");
+            }
+            return rec.Status switch
+            {
+                "ok" or "skipped" => ExitOk,
+                "partial" => ExitPartial,
+                _ => ExitFailed
+            };
+        }
+        catch (InvalidOperationException ex)
+        {
+            // 同任务 GUI/另一 CLI 正在跑：引擎 _busy 挡（预期防重入语义）
+            say($"无法执行: {ex.Message}");
+            return ExitFailed;
+        }
+        catch (Exception ex)
+        {
+            say($"执行失败: {ex.Message}");
+            return ExitFailed;
+        }
+    }
+
+    /// <summary>输出接管：Windows GUI 子系统进程 AttachConsole 接父控制台（双击启动无父控制台时
+    /// 失败=只写日志文件）；Unix 终端启动 stdout 本就直连，直接给 UTF-8 writer。
+    /// stdout writer 惰性创建陷阱（Windows）：Console 类首次使用后不再接管，Attach 后显式 OpenStandardOutput。</summary>
+    private static TextWriter? AttachWriters()
+    {
+        try
+        {
+#if WINDOWS
+            // S-8 形态判定必须走 native GetFileType，绝不能碰 Console.IsOutputRedirected——
+            // WinExe 子进程未 attach 时无有效控制台句柄，GetConsoleMode 失败被 .NET 判为
+            // redirected 且惰性缓存，之后真 attach 也接管不回（2026-09-21 探针实证）。
+            // ① 重定向形态（stdout=管道/文件：CI 门禁、脚本捕获）：绝不能 AttachConsole——
+            //    attach 会把 std 句柄表覆盖成 attach 的控制台，管道输出整体丢失
+            //    （CI 提权链 4 项输出断言全挂实锤）。直写继承的管道句柄，且不碰
+            //    OutputEncoding（无控制台时抛 IOException）。
+            var hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            var ft = GetFileType(hOut);
+            if (ft is FILE_TYPE_PIPE or FILE_TYPE_DISK)
+                return new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+            // ② 无有效句柄（cmd/终端直跑 GUI 子系统的形态，FileType=UNKNOWN）：AttachConsole
+            //    接父控制台成功后句柄表被填上有效控制台句柄，此时再设编码、再开流
+            //    （顺序反了则 OutputEncoding 抛「句柄无效」、attach 永不可达）
+            if (!AttachConsole(ATTACH_PARENT_PROCESS)) return null;   // 双击启动等无父控制台：只写日志
+            Console.OutputEncoding = Encoding.UTF8;
+            return new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+#else
+            Console.OutputEncoding = Encoding.UTF8;
+            return new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+#endif
+        }
+        catch { return null; }
+    }
+
+    private static void WriteLogFile(string content)
+    {
+        try
+        {
+            var dir = Core.Platform.AppPaths.CliLogDir;
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, $"cli-{DateTime.Now:yyyyMMdd-HHmmss-fff}.log"),
+                content, new UTF8Encoding(false));
+            // 轮转：保留最近 200 档（文件名字典序=时间序）。高频计划任务每次运行一个新档，
+            // 无上限常年累月写爆磁盘；crash.log 有 1MB 轮转，这里同纪律
+            var logs = Directory.GetFiles(dir, "cli-*.log");
+            if (logs.Length > 200)
+                foreach (var f in logs.OrderBy(f => f, StringComparer.Ordinal).Take(logs.Length - 200))
+                    try { File.Delete(f); } catch { }
+        }
+        catch { /* 日志失败不影响退出码 */ }
+    }
+}
