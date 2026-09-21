@@ -1,0 +1,105 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- win RID（或无 RID 且构建机为 Windows）时置位：manifest 挂载与 AttachConsole 等 Windows 专属路径。
+         必须先于所有消费者定义（MSBuild 属性组按文档序求值） -->
+    <_IsWinRid Condition="'$(RuntimeIdentifier)' != '' and $(RuntimeIdentifier.StartsWith('win'))">true</_IsWinRid>
+    <_IsWinRid Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">true</_IsWinRid>
+    <!-- win 形态置位 WINDOWS 编译宏（S-8 收口）：Cli.cs 的 AttachConsole/GetFileType 控制台接管
+         路径此前从未编译进产物（宏只在 SmokeTest 定义过），net8.0 单 TFM 下 #if WINDOWS 恒 false，
+         Windows 产物实际走的是「无效句柄判 redirected」的哑路径——终端直跑零输出的另一半根因 -->
+    <DefineConstants Condition="'$(_IsWinRid)' == 'true'">$(DefineConstants);WINDOWS</DefineConstants>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Windows：requireAdministrator manifest（USN Journal 需要管理员，免提权路线 2026-09-12 实测不通）；
+         Unix 无 manifest 概念，普通权限运行（方案 §4.3）。manifest/图标按目标 RID 判定（不是构建机
+         OS）：Linux/macOS CI 交叉编译 win RID 同样要带上 -->
+    <ApplicationManifest Condition="'$(_IsWinRid)' == 'true'">app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\app.ico</ApplicationIcon>
+    <AssemblyName>FolderSync</AssemblyName>
+    <RootNamespace>FolderSync.App</RootNamespace>
+    <Version>2.0.0</Version>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <!-- IncludeGUI=false：CLI-only 变体（linux-x86 无 SkiaSharp，方案 §3.1/§7.3）——
+       裁掉 Avalonia 全家与 GUI 源码，纯 CLI 出包（体积 ~100MB→~30MB） -->
+  <PropertyGroup Condition="'$(IncludeGUI)' == 'false'">
+    <DefineConstants>$(DefineConstants);NO_GUI</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IncludeGUI)' != 'false'">
+    <!-- 全家钉死 11.3.13 与 DataGrid 对齐：主包 11.3.14+ 与 DataGrid 11.3.13 错配时
+         DataGridTemplateColumn.CellTemplate 全部不渲染（行容器在、内容空，2026-09-16 dgtest 四列矩阵实锤） -->
+    <PackageReference Include="Avalonia" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.13" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <!-- win RID 发布瘦身（2026-09-16 实测）：Windows 运行时不加载的 Unix 后端，从源头断供
+       runtime 资产（~1.05MB），散文件与单文件 bundle 均不携带。显式引用钉同版本以覆盖
+       Avalonia.Desktop 的传递引用；Unix RID 不排除（X11/FreeDesktop/DBus 是 Linux 后端必需）。
+       Tmds.DBus.Protocol 0.21.3 = GHSA-xrw6-gwf8-vvr9（CVE-2026-39959 高危）在 0.21.x 线的
+       修复版；基线 0.21.2 是 Avalonia.FreeDesktop 11.3.13 的解析版本（project.assets.json）。
+       剩余 Avalonia.DesignerSupport / Avalonia.Remote.Protocol 藏在 Avalonia 主包内，包级排除
+       不可行，由 RemoveWinUnusedAssemblies 在散文件模式下兜底；单文件 bundle 仅多带 274K -->
+  <ItemGroup Condition="'$(_IsWinRid)' == 'true' and '$(IncludeGUI)' != 'false'">
+    <PackageReference Include="Avalonia.X11" Version="11.3.13" ExcludeAssets="runtime" />
+    <PackageReference Include="Avalonia.Native" Version="11.3.13" ExcludeAssets="runtime" />
+    <PackageReference Include="Avalonia.FreeDesktop" Version="11.3.13" ExcludeAssets="runtime" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FolderSync.Core\FolderSync.Core.csproj" />
+    <ProjectReference Include="..\FolderSync.Platforms\FolderSync.Platforms.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IncludeGUI)' != 'false'">
+    <AvaloniaResource Include="assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IncludeGUI)' == 'false'">
+    <!-- CLI-only：排除 GUI 全部源码与资源（Cli/Program 保留，经 NO_GUI 条件编译） -->
+    <Compile Remove="Views\**" />
+    <Compile Remove="ViewModels\**" />
+    <Compile Remove="Services\TrayService.cs" />
+    <Compile Remove="Services\TreeIcons.cs" />
+    <Compile Remove="Services\Dialogs.cs" />
+    <Compile Remove="Services\E2eSilent.cs" />
+    <Compile Remove="Services\ThemeService.cs" />
+    <Compile Remove="App.axaml.cs" />
+    <AvaloniaResource Remove="Themes\Palette.axaml" />
+    <AvaloniaXaml Remove="App.axaml" />
+  </ItemGroup>
+
+  <!-- win RID 发布瘦身（2026-09-16 实测）：Windows 运行时不加载的 Unix 后端/设计器托管库，
+       从发布清单移除（~1.35MB），散文件与单文件 bundle 均不携带。提权冒烟验证：主窗口正常
+       渲染、被剔 dll 加载数=0。CLI-only 无 Avalonia 不适用；Unix RID 需要这些库
+       （X11/FreeDesktop/DBus 是 Linux 后端），仅在 win RID 下剔除 -->
+  <!-- 散文件发布的兜底过滤（主包内 2 个 dll 走这里；上面 4 个 ExcludeAssets 的也顺带防御）。
+       单文件模式下此挂点晚于 bundle 组装（ResolvedFileToPublish 只剩散件），空转无害。
+       按文件名过滤必须走「暂存→Remove→Condition 回灌」（Remove 的 spec 是完整路径，
+       直接 Remove="文件名" 匹配不上；Condition 里 item list 比较恒不等，同样不可用） -->
+  <Target Name="RemoveWinUnusedAssemblies"
+          AfterTargets="ComputeFilesToPublish"
+          Condition="'$(_IsWinRid)' == 'true' and '$(IncludeGUI)' != 'false'">
+    <ItemGroup>
+      <_AllFilesToPublish Include="@(ResolvedFileToPublish)" />
+      <ResolvedFileToPublish Remove="@(_AllFilesToPublish)" />
+      <ResolvedFileToPublish Include="@(_AllFilesToPublish)"
+          Condition="'%(_AllFilesToPublish.Filename)%(_AllFilesToPublish.Extension)' != 'Avalonia.X11.dll'
+                 and '%(_AllFilesToPublish.Filename)%(_AllFilesToPublish.Extension)' != 'Avalonia.Native.dll'
+                 and '%(_AllFilesToPublish.Filename)%(_AllFilesToPublish.Extension)' != 'Avalonia.FreeDesktop.dll'
+                 and '%(_AllFilesToPublish.Filename)%(_AllFilesToPublish.Extension)' != 'Tmds.DBus.Protocol.dll'
+                 and '%(_AllFilesToPublish.Filename)%(_AllFilesToPublish.Extension)' != 'Avalonia.Remote.Protocol.dll'
+                 and '%(_AllFilesToPublish.Filename)%(_AllFilesToPublish.Extension)' != 'Avalonia.DesignerSupport.dll'" />
+      <_AllFilesToPublish Remove="@(_AllFilesToPublish)" />
+    </ItemGroup>
+  </Target>
+
+</Project>
