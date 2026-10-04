@@ -1,0 +1,109 @@
+name: CI
+
+# 快速门禁（方案 §7.2/§8.5）：push 分支 / PR → 三 OS + arm64 真机各跑 build + SmokeTest。
+# 全量打包走 release.yml（打 v* 标签触发）。usn/diskfull 在非提权 runner 上由套件内守卫打 SKIP。
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # 参考#10：四平台 suite 列表单一来源（空格分隔，各 job 展开成数组）——原先四份复制粘贴
+  # 已漂移出差异（windows 多 ts）。Windows 专属的 ts 探针（TSProbe 提权资产）由 windows job 自行追加
+  SUITES: >-
+    smoke twoway fixreg safety versionrepo delta cancel retry backup move
+    caseconflict conflictcopy verify schedule report override parallel
+    watcher datapath unixfileops autostart cli
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与 release.yml 一致（8.0.425 publish 项目路径隐式 restore NU1201，2026-09-16）
+      - name: Build
+        run: dotnet build FolderSync.sln -c Release -v q --nologo
+      - name: SmokeTest（非提权全套件，usn/diskfull 自动 SKIP）
+        shell: bash
+        run: |
+          suites=($SUITES)          # env 单一来源展开
+          suites+=(ts)              # Windows 专属 ts 探针（TSProbe 提权资产）
+          fail=0
+          for s in "${suites[@]}"; do
+            echo "===== $s ====="
+            dotnet run --project tests/FolderSync.SmokeTest -c Release -f net8.0-windows --no-build -- "$s" || fail=1
+          done
+          exit $fail
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与 release.yml 一致（8.0.425 publish 项目路径隐式 restore NU1201，2026-09-16）
+      - name: Build
+        run: dotnet build FolderSync.sln -c Release -v q --nologo
+      - name: SmokeTest（unix 套件 + cli 门禁）
+        shell: bash
+        run: |
+          suites=($SUITES)
+          fail=0
+          for s in "${suites[@]}"; do
+            echo "===== $s ====="
+            dotnet run --project tests/FolderSync.SmokeTest -c Release -f net8.0 --no-build -- "$s" || fail=1
+          done
+          exit $fail
+
+  linux-arm:
+    # arm 交叉编译「能构建 ≠ 能跑」的真机验证（方案 §7.2/风险表）
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与 release.yml 一致（8.0.425 publish 项目路径隐式 restore NU1201，2026-09-16）
+      - name: Build
+        run: dotnet build FolderSync.sln -c Release -v q --nologo
+      - name: SmokeTest（arm64 真机核心套件）
+        shell: bash
+        run: |
+          suites=($SUITES)
+          fail=0
+          for s in "${suites[@]}"; do
+            echo "===== $s ====="
+            dotnet run --project tests/FolderSync.SmokeTest -c Release -f net8.0 --no-build -- "$s" || fail=1
+          done
+          exit $fail
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与 release.yml 一致（8.0.425 publish 项目路径隐式 restore NU1201，2026-09-16）
+      - name: Build
+        run: dotnet build FolderSync.sln -c Release -v q --nologo
+      - name: SmokeTest（unix 套件 + cli 门禁）
+        shell: bash
+        run: |
+          suites=($SUITES)
+          fail=0
+          for s in "${suites[@]}"; do
+            echo "===== $s ====="
+            dotnet run --project tests/FolderSync.SmokeTest -c Release -f net8.0 --no-build -- "$s" || fail=1
+          done
+          exit $fail

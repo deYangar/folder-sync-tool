@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FolderSync.App.ViewModels"
+        x:Class="FolderSync.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="设置" Width="520" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="16" Spacing="8">
+        <TextBlock Text="软件设置" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource Accent}"/>
+
+        <CheckBox Content="开机自启" IsChecked="{Binding AutostartEnabled}" IsEnabled="{Binding AutostartAvailable}"
+                  AutomationProperties.Name="开机自启"/>
+        <CheckBox Content="自启时最小化到托盘" IsChecked="{Binding AutostartMinimized}" Margin="20,0,0,0"
+                  AutomationProperties.Name="自启时最小化"/>
+        <CheckBox Content="对照表显示文件类型图标" IsChecked="{Binding ShowIcons}" AutomationProperties.Name="显示图标"/>
+        <CheckBox Content="记住窗口位置和大小" IsChecked="{Binding RememberWindow}" AutomationProperties.Name="记住窗口位置和大小"/>
+
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+            <TextBlock Text="主题" VerticalAlignment="Center" FontSize="13" Width="80"/>
+            <ComboBox SelectedIndex="{Binding ThemeModeIndex}" Width="160" AutomationProperties.Name="主题">
+                <ComboBoxItem Content="跟随系统"/>
+                <ComboBoxItem Content="浅色"/>
+                <ComboBoxItem Content="深色"/>
+            </ComboBox>
+        </StackPanel>
+
+        <Border Background="{DynamicResource PanelBg}" CornerRadius="6" Padding="10,8" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="块级增量基线索引" FontSize="12.5"/>
+                    <TextBlock Text="{Binding BaselineInfo}" FontSize="11.5" Foreground="{DynamicResource TextTertiary}"/>
+                </StackPanel>
+                <Button Content="清理基线索引" Padding="12,5" Click="BtnClearBaseline_Click"
+                        VerticalAlignment="Center" AutomationProperties.Name="清理基线索引"/>
+            </StackPanel>
+        </Border>
+
+        <Button Content="还原窗口布局" Padding="12,5" HorizontalAlignment="Right" Margin="0,8,0,0"
+                Click="BtnResetLayout_Click" AutomationProperties.Name="还原窗口布局"/>
+        <Button Content="关闭" Width="96" Padding="0,7" HorizontalAlignment="Right" Margin="0,8,0,0" Click="Close_Click"/>
+    </StackPanel>
+</Window>

@@ -1,0 +1,169 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FolderSync.App.ViewModels"
+        x:Class="FolderSync.App.Views.JobEditWindow"
+        x:DataType="vm:JobEditViewModel"
+        Title="任务设置" Width="680" MinWidth="640" MinHeight="380"
+        SizeToContent="Height" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="*,Auto" Margin="14">
+        <ScrollViewer Grid.Row="0">
+            <StackPanel Spacing="10">
+                <!-- ===== 基本信息 ===== -->
+                <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="8" Padding="14,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="基本信息" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Accent}"/>
+                        <Grid ColumnDefinitions="92,*,Auto">
+                            <TextBlock Text="任务名称" VerticalAlignment="Center" FontSize="13"/>
+                            <TextBox Grid.Column="1" Text="{Binding Name}" AutomationProperties.Name="任务名称"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="92,*,Auto">
+                            <TextBlock Text="左侧文件夹" VerticalAlignment="Center" FontSize="13"/>
+                            <TextBox Grid.Column="1" Text="{Binding LeftPath}" Margin="0,0,8,0" AutomationProperties.Name="左侧文件夹"/>
+                            <Button Grid.Column="2" Content="浏览…" Padding="12,5" Click="BrowseLeft_Click"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="92,*,Auto">
+                            <TextBlock Text="右侧文件夹" VerticalAlignment="Center" FontSize="13"/>
+                            <TextBox Grid.Column="1" Text="{Binding RightPath}" Margin="0,0,8,0" AutomationProperties.Name="右侧文件夹"/>
+                            <Button Grid.Column="2" Content="浏览…" Padding="12,5" Click="BrowseRight_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 同步方式与触发 ===== -->
+                <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="8" Padding="14,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="同步方式与触发" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Accent}"/>
+                        <Grid ColumnDefinitions="92,*,78,*">
+                            <TextBlock Text="方向" VerticalAlignment="Center" FontSize="13"
+                                       ToolTip.Tip="镜像：源覆盖目标，目标较新时反向回写源（新者胜）或按严格镜像一律源覆盖。备份：只从源复制到目标，永不反向修改源、永不删除源"/>
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding DirectionIndex}" AutomationProperties.Name="方向">
+                                <ComboBoxItem Content="左 → 右（镜像）"/>
+                                <ComboBoxItem Content="右 → 左（镜像）"/>
+                                <ComboBoxItem Content="双向同步（⇄）"/>
+                                <ComboBoxItem Content="左 → 右（备份）"/>
+                                <ComboBoxItem Content="右 → 左（备份）"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="2" Text="触发" VerticalAlignment="Center" FontSize="13" Margin="10,0,0,0"/>
+                            <ComboBox Grid.Column="3" SelectedIndex="{Binding TriggerIndex}" AutomationProperties.Name="触发">
+                                <ComboBoxItem Content="手动"/>
+                                <ComboBoxItem Content="实时监听"/>
+                                <ComboBoxItem Content="定时间隔"/>
+                                <ComboBoxItem Content="定时（指定时刻）"/>
+                            </ComboBox>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowSchedule}"
+                                    ToolTip.Tip="到点自动同步（本地时区；调度器每 30 秒检查一次）。关机错过的时刻由启动补跑兜底">
+                            <TextBlock Text="时刻" VerticalAlignment="Center" FontSize="13"/>
+                            <ComboBox Width="58" ItemsSource="{Binding SchedHours}" SelectedIndex="{Binding SchedHourIndex}"/>
+                            <TextBlock Text=":" VerticalAlignment="Center"/>
+                            <ComboBox Width="58" ItemsSource="{Binding SchedMinutes}" SelectedIndex="{Binding SchedMinuteIndex}"/>
+                            <CheckBox Content="每天" IsChecked="{Binding SchedDaily}"/>
+                            <StackPanel Orientation="Horizontal" IsEnabled="{Binding WeekEnabled}">
+                                <CheckBox Content="一" Margin="0,0,6,0" IsChecked="{Binding Day1}"/>
+                                <CheckBox Content="二" Margin="0,0,6,0" IsChecked="{Binding Day2}"/>
+                                <CheckBox Content="三" Margin="0,0,6,0" IsChecked="{Binding Day3}"/>
+                                <CheckBox Content="四" Margin="0,0,6,0" IsChecked="{Binding Day4}"/>
+                                <CheckBox Content="五" Margin="0,0,6,0" IsChecked="{Binding Day5}"/>
+                                <CheckBox Content="六" Margin="0,0,6,0" IsChecked="{Binding Day6}"/>
+                                <CheckBox Content="日" IsChecked="{Binding Day7}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowConflictPolicy}"
+                                    ToolTip.Tip="双向同步时两侧同名文件都被修改，按此策略自动裁决">
+                            <TextBlock Text="冲突策略" VerticalAlignment="Center" FontSize="13"/>
+                            <ComboBox Width="220" SelectedIndex="{Binding ConflictPolicyIndex}">
+                                <ComboBoxItem Content="最新修改日期优先"/>
+                                <ComboBoxItem Content="文件大小优先"/>
+                                <ComboBoxItem Content="手动裁决（不自动覆盖）"/>
+                                <ComboBoxItem Content="冲突副本（败者改名保留）"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <Grid ColumnDefinitions="92,*,78,*">
+                            <StackPanel Orientation="Horizontal" Spacing="8" Grid.Column="1" IsVisible="{Binding ShowInterval}">
+                                <TextBlock Text="间隔" VerticalAlignment="Center" FontSize="13"/>
+                                <TextBox Width="70" Text="{Binding IntervalText}"/>
+                                <ComboBox Width="82" SelectedIndex="{Binding IntervalUnitIndex}">
+                                    <ComboBoxItem Content="小时"/>
+                                    <ComboBoxItem Content="分钟"/>
+                                    <ComboBoxItem Content="秒"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Grid.Column="3" IsVisible="{Binding ShowDebounce}">
+                                <TextBlock Text="去抖(秒)" VerticalAlignment="Center" FontSize="13"/>
+                                <TextBox Width="90" Text="{Binding DebounceText}"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== 选项 ===== -->
+                <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="8" Padding="14,12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="选项" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,0,0,4"/>
+                        <Grid ColumnDefinitions="92,*" Margin="0,0,0,6">
+                            <TextBlock Text="排除规则" VerticalAlignment="Center" FontSize="13"
+                                       ToolTip.Tip="分号分隔；支持通配符（*.tmp）或路径段名（.git）"/>
+                            <TextBox Grid.Column="1" Text="{Binding ExcludeText}"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="92,Auto,*" Margin="0,0,0,6">
+                            <TextBlock Text="版本保留" VerticalAlignment="Center" FontSize="13"/>
+                            <StackPanel Orientation="Horizontal" Grid.Column="1" Margin="0,0,10,0">
+                                <TextBox Width="56" Text="{Binding VersionKeepText}" VerticalAlignment="Center"/>
+                                <TextBlock Text=" 代" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="4,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource TextTertiary}"
+                                       TextTrimming="CharacterEllipsis" Text="0 = 关闭；覆盖/删除前旧版入库，主窗口可浏览/清空"/>
+                        </Grid>
+                        <CheckBox IsChecked="{Binding DeltaSync}" ToolTip.Tip="大文件小改动时显著减少传输量；切块对比后始终做全文校验，小于 4MB 的文件自动走整文件"
+                                  Content="块级增量传输：只传输目标侧缺少的数据块"/>
+                        <CheckBox IsChecked="{Binding AutoRetry}" ToolTip.Tip="复制/删除撞上文件被占用、网络抖动等瞬时错误时轮末自动退避重试（2s/10s/30s 三轮）"
+                                  Content="失败自动重试：文件被占用等瞬时错误轮末自动重试"/>
+                        <CheckBox IsChecked="{Binding MoveDetect}" ToolTip.Tip="一侧删除+同侧出现内容与大小/修改时间完全一致的文件对，识别为移动，目标侧内部改名瞬时完成"
+                                  Content="移动/重命名检测：识别被移动的文件，目标侧直接改名代替重拷"/>
+                        <Grid ColumnDefinitions="*,*">
+                            <CheckBox IsChecked="{Binding CopyVerify}" Margin="0,0,10,0"
+                                      ToolTip.Tip="每个文件复制完成后读回目标全文哈希与源比对，不符记失败。代价：速度约减半"
+                                      Content="复制后复核（写完读回验哈希）"/>
+                            <StackPanel Orientation="Horizontal" Grid.Column="1"
+                                        ToolTip.Tip="分析时对「两侧大小/时间一致」的文件比对内容哈希，检出磁盘静默损坏">
+                                <TextBlock Text="深度校验" VerticalAlignment="Center" FontSize="13"/>
+                                <ComboBox Width="118" SelectedIndex="{Binding DeepVerifyIndex}" Margin="6,0,0,0">
+                                    <ComboBoxItem Content="关"/>
+                                    <ComboBoxItem Content="仅 ≥50MB 文件"/>
+                                    <ComboBoxItem Content="全量"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
+                                    ToolTip.Tip="复制/归档趟多 worker 并行（删除趟保持串行）。机械盘或高并发小文件场景可设 1">
+                            <TextBlock Text="并行复制" VerticalAlignment="Center" FontSize="13"/>
+                            <ComboBox Width="70" SelectedIndex="{Binding CopyWorkersIndex}" Margin="6,0,0,0">
+                                <ComboBoxItem Content="1（串行）"/>
+                                <ComboBoxItem Content="2"/>
+                                <ComboBoxItem Content="3"/>
+                                <ComboBoxItem Content="4"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <CheckBox IsChecked="{Binding StrictMirror}" IsVisible="{Binding StrictMirrorVisible}"
+                                  IsEnabled="{Binding StrictMirrorEnabled}"
+                                  ToolTip.Tip="{Binding StrictMirrorTip}"
+                                  Content="严格镜像：两边都改过时一律以源覆盖目标（关 = 保留较新一侧）"/>
+                        <CheckBox IsChecked="{Binding MirrorDelete}" Content="{Binding MirrorDeleteText}"
+                                  ToolTip.Tip="首次运行建议关闭，确认差异列表无误后再开启"/>
+                        <CheckBox IsChecked="{Binding DeleteToRecycleBin}" Content="删除进回收站（网络路径除外）"/>
+                        <CheckBox IsChecked="{Binding Enabled}" Content="任务启用（关闭后不参与实时/定时自动同步）"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0" Spacing="10">
+            <Button Classes="primary" Content="确定" Width="96" Padding="0,7" Click="Ok_Click"/>
+            <Button Content="取消" Width="96" Padding="0,7" Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

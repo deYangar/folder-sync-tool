@@ -1,0 +1,262 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FolderSync.App.App"
+             RequestedThemeVariant="Default">
+    <!-- RequestedThemeVariant：Default=跟随系统（浅深由 Palette.ThemeDictionaries 自动换），
+         三档主题（跟随/浅/深）由 ThemeService 写此属性 -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://FolderSync/Themes/Palette.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- ============ 全局字体：西文 + 各平台中文回退链 ============ -->
+            <FontFamily x:Key="DefaultFont">Segoe UI, Microsoft YaHei UI, Noto Sans CJK SC, PingFang SC, sans-serif</FontFamily>
+            <FontFamily x:Key="MonoFont">Consolas, Menlo, DejaVu Sans Mono, monospace</FontFamily>
+
+
+
+            <!-- 图标文字工具钮：透明底 + hover 泛色（WPF BtnIconText 对应） -->
+
+
+
+
+
+
+
+
+            <!-- 对照表左右侧列底（cell class 挂列语义） -->
+
+
+
+            <!-- ============ 树展开箭头（▸/▾ 文字版，跨平台免图标字体） ============ -->
+        </ResourceDictionary>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme />
+        <!-- 必需：Avalonia 11 的 <FluentTheme /> 在本应用结构下不带 DataGrid 控件主题，
+             缺它时 DataGrid 整个不渲染（无列头无行，2026-09-16 单变量对照实验实锤；
+             dgtest 最小工程同版本不需要它却正常，疑与全局 DataGrid 样式/Palette 字典有关，未定论） -->
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+            <Style Selector="Button">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                <Setter Property="CornerRadius" Value="5"/>
+                <Setter Property="Cursor" Value="Hand"/>
+            </Style>
+            <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="Button.primary">
+                <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentForeground}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </Style>
+            <Style Selector="Button.primary:pointerover">
+                <Setter Property="Background" Value="{DynamicResource AccentDark}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentDark}"/>
+            </Style>
+            <Style Selector="Button.iconbtn">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="Margin" Value="0,0,6,0"/>
+            </Style>
+            <Style Selector="Button.iconbtn:pointerover /template/ Border#PART_BorderElement">
+                <Setter Property="Background" Value="{DynamicResource PanelBg2}"/>
+            </Style>
+            <Style Selector="TextBox">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="6,5"/>
+                <Setter Property="Background" Value="{DynamicResource InputBg}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            </Style>
+            <Style Selector="ComboBox">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="MinHeight" Value="30"/>
+                <Setter Property="Background" Value="{DynamicResource InputBg}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="CheckBox">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                <Setter Property="Margin" Value="0,5,0,0"/>
+            </Style>
+            <Style Selector="RadioButton">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="ToolTip">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+            </Style>
+            <Style Selector="ListBox.joblist">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Margin" Value="6"/>
+                <Setter Property="Padding" Value="0"/>
+            </Style>
+            <Style Selector="ListBox.joblist ListBoxItem">
+                <Setter Property="Padding" Value="10,8"/>
+                <Setter Property="Margin" Value="2,2"/>
+                <Setter Property="CornerRadius" Value="7"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="ListBox.joblist ListBoxItem:pointerover /template/ ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource BadgeGrayBg}"/>
+                <Setter Property="CornerRadius" Value="7"/>
+            </Style>
+            <Style Selector="ListBox.joblist ListBoxItem:selected /template/ ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+                <Setter Property="CornerRadius" Value="7"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource VersionBadge}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+            </Style>
+            <Style Selector="DataGrid">
+                <Setter Property="FontSize" Value="12.5"/>
+                <Setter Property="RowHeight" Value="30"/>
+                <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+                <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BadgeGrayBg}"/>
+                <Setter Property="HeadersVisibility" Value="Column"/>
+                <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+                <Setter Property="RowBackground" Value="{DynamicResource CardBg}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="DataGridColumnHeader">
+                <Setter Property="Background" Value="{DynamicResource PanelBg2}"/>
+                <Setter Property="Foreground" Value="{DynamicResource BadgeGrayFg}"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Padding" Value="8,6"/>
+            </Style>
+            <!-- 列头字号必须打在模板内最终绘字的 TextBlock 上：Fluent 的 DataGridColumnHeader
+                 ControlTheme 自带大字号且优先级压过应用级隐式样式（实测列头 ~15pt 导致
+                 「左·大小」在 104px 列被截断、窄列头出现裁剪残迹），这里直接钉死 -->
+            <Style Selector="DataGridColumnHeader TextBlock">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+                <Setter Property="Foreground" Value="{DynamicResource BadgeGrayFg}"/>
+            </Style>
+            <Style Selector="DataGridCell">
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Focusable" Value="False"/>
+            </Style>
+            <Style Selector="DataGridRow:selected">
+                <Setter Property="Background" Value="{DynamicResource LeftBand}"/>
+            </Style>
+            <Style Selector="DataGridCell.leftcol">
+                <Setter Property="Background" Value="{DynamicResource LeftBand}"/>
+                <Setter Property="Padding" Value="8,0"/>
+                <Setter Property="Foreground" Value="{DynamicResource LeftBandText}"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+            <Style Selector="DataGridCell.rightcol">
+                <Setter Property="Background" Value="{DynamicResource RightBand}"/>
+                <Setter Property="Padding" Value="8,0"/>
+                <Setter Property="Foreground" Value="{DynamicResource RightBandText}"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+            <Style Selector="Button.cellaction">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,3"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            </Style>
+            <Style Selector="ToggleButton.filtertab">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Margin" Value="0,0,6,0"/>
+                <Setter Property="Padding" Value="10,4"/>
+                <Setter Property="CornerRadius" Value="14"/>
+                <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="FontSize" Value="12.5"/>
+            </Style>
+            <Style Selector="ToggleButton.filtertab:pointerover">
+                <Setter Property="Background" Value="{DynamicResource PanelBg2}"/>
+            </Style>
+            <Style Selector="ToggleButton.filtertab:checked">
+                <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </Style>
+            <!-- 自定义模板：FluentTheme 默认 RadioButton 圆圈过大（~22px），
+                 换标准单选框比例的小尺寸版：14px 外圈 + 选中时 6px 实心内点 -->
+            <Style Selector="RadioButton.filtertab">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Grid Width="14" Height="14" VerticalAlignment="Center">
+                                    <Ellipse x:Name="PART_FilterDotRing" Fill="Transparent"
+                                             Stroke="{DynamicResource TextTertiary}" StrokeThickness="1.2"/>
+                                    <Ellipse x:Name="PART_FilterDotCore" Width="6" Height="6"
+                                             Fill="{DynamicResource Accent}" IsVisible="False"/>
+                                </Grid>
+                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+            </Style>
+            <Style Selector="RadioButton.filtertab:pointerover /template/ Ellipse#PART_FilterDotRing">
+                <Setter Property="Stroke" Value="{DynamicResource TextSecondary}"/>
+            </Style>
+            <Style Selector="RadioButton.filtertab:checked /template/ Ellipse#PART_FilterDotRing">
+                <Setter Property="Stroke" Value="{DynamicResource Accent}"/>
+            </Style>
+            <Style Selector="RadioButton.filtertab:checked /template/ Ellipse#PART_FilterDotCore">
+                <Setter Property="IsVisible" Value="True"/>
+            </Style>
+            <Style Selector="ToggleButton.treetoggle">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Width" Value="16"/>
+                <Setter Property="Height" Value="20"/>
+            </Style>
+            <Style Selector="Border.badge">
+                <Setter Property="CornerRadius" Value="9"/>
+                <Setter Property="Padding" Value="7,1"/>
+            </Style>
+            <Style Selector="Separator">
+                <Setter Property="Background" Value="{DynamicResource Separator}"/>
+            </Style>
+            <Style Selector="Window">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+                <Setter Property="Background" Value="{DynamicResource WindowBg}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </Style>
+            <Style Selector="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource DefaultFont}"/>
+            </Style>
+    </Application.Styles>
+</Application>

@@ -1,0 +1,101 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:ClassModifier="internal">
+    <!-- 配色体系（v1.7 D3 定稿色板平移）：Avalonia ThemeDictionaries 原生支持亮暗两套，
+         RequestedThemeVariant 切换（跟随系统=Default）时 DynamicResource 全自动刷新——
+         对应 WPF 版 ThemeManager 手动换合并字典 + Registry 读系统深浅的全部职责 -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="WindowBg" Color="#FAFBFD"/>
+            <SolidColorBrush x:Key="CardBg" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="CardBorder" Color="#E3E6EA"/>
+            <SolidColorBrush x:Key="Separator" Color="#E3E6EA"/>
+            <SolidColorBrush x:Key="HeaderBg" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="HoverBg" Color="#F0F6FF"/>
+            <SolidColorBrush x:Key="TextPrimary" Color="#1F2328"/>
+            <SolidColorBrush x:Key="TextSecondary" Color="#5B7186"/>
+            <SolidColorBrush x:Key="TextTertiary" Color="#8A929C"/>
+            <SolidColorBrush x:Key="Accent" Color="#0078D4"/>
+            <SolidColorBrush x:Key="AccentDark" Color="#005A9E"/>
+            <SolidColorBrush x:Key="AccentForeground" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="LeftBand" Color="#DCEBFB"/>
+            <SolidColorBrush x:Key="LeftBandText" Color="#0A3D6B"/>
+            <SolidColorBrush x:Key="RightBand" Color="#EDE9FE"/>
+            <SolidColorBrush x:Key="RightBandText" Color="#6D28D9"/>
+            <SolidColorBrush x:Key="Success" Color="#107C10"/>
+            <SolidColorBrush x:Key="SuccessBg" Color="#E3F4E7"/>
+            <SolidColorBrush x:Key="Danger" Color="#C42B1C"/>
+            <SolidColorBrush x:Key="DangerBg" Color="#FBE5E3"/>
+            <SolidColorBrush x:Key="Warning" Color="#D29400"/>
+            <SolidColorBrush x:Key="WarningDeep" Color="#B45309"/>
+            <SolidColorBrush x:Key="WarningBg" Color="#FFF6D9"/>
+            <SolidColorBrush x:Key="Teal" Color="#03898F"/>
+            <SolidColorBrush x:Key="LogBg" Color="#1E2128"/>
+            <SolidColorBrush x:Key="LogFg" Color="#D4D4D4"/>
+            <SolidColorBrush x:Key="TreeAltBg" Color="#F5FAFF"/>
+            <SolidColorBrush x:Key="RowHoverBg" Color="#EAF3FB"/>
+            <SolidColorBrush x:Key="ConflictRowBg" Color="#FBF0DB"/>
+            <SolidColorBrush x:Key="ProgressBg" Color="#C9CED6"/>
+            <SolidColorBrush x:Key="PanelBg" Color="#F7F9FB"/>
+            <SolidColorBrush x:Key="PanelBg2" Color="#F4F6F9"/>
+            <SolidColorBrush x:Key="InputBg" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="BadgeGrayBg" Color="#EDEFF2"/>
+            <SolidColorBrush x:Key="BadgeGrayFg" Color="#57606A"/>
+            <SolidColorBrush x:Key="StatusIdle" Color="#0078D4"/>
+            <SolidColorBrush x:Key="StatusRun" Color="#107C10"/>
+            <SolidColorBrush x:Key="StatusWarn" Color="#F7630C"/>
+            <SolidColorBrush x:Key="StatusDisabled" Color="#9AA5B1"/>
+            <SolidColorBrush x:Key="StatusMedia" Color="#7A9EC4"/>
+            <SolidColorBrush x:Key="IconFolder" Color="#E0A82E"/>
+            <SolidColorBrush x:Key="IconDoc" Color="#6B7280"/>
+            <SolidColorBrush x:Key="StepDone" Color="#107C10"/>
+            <SolidColorBrush x:Key="VersionBadge" Color="#9FCEF5"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="WindowBg" Color="#1A1D23"/>
+            <SolidColorBrush x:Key="CardBg" Color="#232830"/>
+            <SolidColorBrush x:Key="CardBorder" Color="#2E3540"/>
+            <SolidColorBrush x:Key="Separator" Color="#2E3540"/>
+            <SolidColorBrush x:Key="HeaderBg" Color="#1F242C"/>
+            <SolidColorBrush x:Key="HoverBg" Color="#1D3346"/>
+            <SolidColorBrush x:Key="TextPrimary" Color="#E4E8EE"/>
+            <SolidColorBrush x:Key="TextSecondary" Color="#9AA5B5"/>
+            <SolidColorBrush x:Key="TextTertiary" Color="#6B7686"/>
+            <SolidColorBrush x:Key="Accent" Color="#4CC2FF"/>
+            <SolidColorBrush x:Key="AccentDark" Color="#2B9BD6"/>
+            <SolidColorBrush x:Key="AccentForeground" Color="#0B1520"/>
+            <SolidColorBrush x:Key="LeftBand" Color="#1D3A5C"/>
+            <SolidColorBrush x:Key="LeftBandText" Color="#9FCEF5"/>
+            <SolidColorBrush x:Key="RightBand" Color="#2E2A4D"/>
+            <SolidColorBrush x:Key="RightBandText" Color="#C4B5FD"/>
+            <SolidColorBrush x:Key="Success" Color="#6CCB5F"/>
+            <SolidColorBrush x:Key="SuccessBg" Color="#1E3A24"/>
+            <SolidColorBrush x:Key="Danger" Color="#FF99A4"/>
+            <SolidColorBrush x:Key="DangerBg" Color="#3D2224"/>
+            <SolidColorBrush x:Key="Warning" Color="#E7B657"/>
+            <SolidColorBrush x:Key="WarningDeep" Color="#E7B657"/>
+            <SolidColorBrush x:Key="WarningBg" Color="#3D3717"/>
+            <SolidColorBrush x:Key="Teal" Color="#38C7CE"/>
+            <SolidColorBrush x:Key="LogBg" Color="#14161B"/>
+            <SolidColorBrush x:Key="LogFg" Color="#C8CDD6"/>
+            <SolidColorBrush x:Key="TreeAltBg" Color="#1F2937"/>
+            <SolidColorBrush x:Key="RowHoverBg" Color="#22303F"/>
+            <SolidColorBrush x:Key="ConflictRowBg" Color="#3A321A"/>
+            <SolidColorBrush x:Key="ProgressBg" Color="#333B47"/>
+            <SolidColorBrush x:Key="PanelBg" Color="#1F242C"/>
+            <SolidColorBrush x:Key="PanelBg2" Color="#20252D"/>
+            <SolidColorBrush x:Key="InputBg" Color="#2A303A"/>
+            <SolidColorBrush x:Key="BadgeGrayBg" Color="#2A303A"/>
+            <SolidColorBrush x:Key="BadgeGrayFg" Color="#9AA5B5"/>
+            <SolidColorBrush x:Key="StatusIdle" Color="#4CC2FF"/>
+            <SolidColorBrush x:Key="StatusRun" Color="#6CCB5F"/>
+            <SolidColorBrush x:Key="StatusWarn" Color="#FF9A5C"/>
+            <SolidColorBrush x:Key="StatusDisabled" Color="#5A6472"/>
+            <SolidColorBrush x:Key="StatusMedia" Color="#6E8FB5"/>
+            <SolidColorBrush x:Key="IconFolder" Color="#E0A82E"/>
+            <SolidColorBrush x:Key="IconDoc" Color="#8B95A5"/>
+            <SolidColorBrush x:Key="StepDone" Color="#6CCB5F"/>
+            <SolidColorBrush x:Key="VersionBadge" Color="#5C8FB8"/>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

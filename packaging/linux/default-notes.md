@@ -1,0 +1,2 @@
+- 多平台构建产物，SHA-256 见 SHA256SUMS.txt
+- Windows 为管理员权限应用（USN 实时监控），Linux/macOS 普通权限
