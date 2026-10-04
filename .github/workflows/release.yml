@@ -1,0 +1,284 @@
+name: Release
+
+# 全量打包（方案 §7.1/§7.2）：打 v* 标签 → 9 RID 14 产物 + SHA-256 校验和 → GitHub Release draft。
+# draft 不自动 publish——发布等咩咩明确指令（发布三铁律）。
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  APP_VERSION: ${{ github.ref_name }}   # 勿叫 VERSION：MSBuild 把环境变量暴露为属性，撞 $(Version) 后 NuGet 解析 v2.0.0-alpha.1 直接炸（2026-09-16 三轮排查实锤）
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 根因实锤：runner DOTNET_ROOT 预装 SDK 10.x 会被 host 优先选中跑 restore，NU1201 是 .NET 10 NuGet 行为；SDK 选择权交给 global.json（8.0.4xx）
+      - name: Restore（按 RID 预 restore——NU1201 双保险之一；publish 保留隐式 restore，--no-restore 会绕开 ExcludeAssets）
+        shell: bash
+        run: |
+          for rid in win-x86 win-x64 win-arm64; do
+            dotnet restore FolderSync.sln -r $rid
+          done
+      - name: Publish（win-x86/x64/arm64 fdd 单文件+剔除——csproj 的 ExcludeAssets/RemoveWinUnusedAssemblies 按此形态生效）
+        shell: bash
+        run: |
+          for rid in win-x86 win-x64 win-arm64; do
+            echo "== $rid =="
+            dotnet publish src/FolderSync.App -c Release -r $rid --self-contained false \
+              -p:PublishSingleFile=true -p:DebugType=none -v q -o "out/$rid"
+            # 单文件 fdd：exe（托管 bundle）+ 平台 native 散件约 5 个；需用户已装 .NET 8 Desktop Runtime
+          done
+      - name: 打 zip（pwsh Compress-Archive——windows runner 的 Git Bash 无 zip 命令，exit 127）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          foreach ($rid in @('win-x86','win-x64','win-arm64')) {
+            Compress-Archive -Path "out/$rid/*" -DestinationPath "dist/FolderSync_${env:APP_VERSION}_${rid}.zip" -Force
+          }
+      - name: Inno Setup 6.7.3（官方钉版本直装；x64/x86/arm64 三架构安装版必编）
+        shell: pwsh
+        run: |
+          # alpha.1-4 arm64 Setup 四版未出真因（本机+CI 日志双实锤）：ISCC.exe 无版本资源恒
+          # 0.0.0.0；注册表 fallback 只查 64 位视图，而 Inno（32 位安装器）的 is1 键写在
+          # Wow6432Node——永远读空 → 版本判 0.0 → 误判 <6.3 静默降级 zip-only（choco 实装的
+          # 一直是新版 6.7.x）。治本：官方 GitHub release 钉版本直装，版本自知免探测；
+          # 装不上或编译失败直接 fail，消灭一切静默降级路径。
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            curl.exe -fsSL -o "$env:RUNNER_TEMP\inno.exe" `
+              "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+            & "$env:RUNNER_TEMP\inno.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART | Out-Null
+          }
+          if (-not (Test-Path $iscc)) { Write-Host "::error::Inno Setup 6.7.3 安装失败（ISCC.exe 不存在）"; exit 1 }
+          foreach ($arch in @('x64','x86','arm64')) {
+            Write-Host "== Setup $arch =="
+            & $iscc "/DAppVersion=$env:APP_VERSION" "/DArch=$arch" "/DSourcePath=$PWD/out/win-$arch" `
+              packaging/windows/foldersync.iss "/O$PWD/dist" | Out-Null
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+      - name: 分发包冒烟（CLI --list；提权 manifest 限制下验证可执行文件存在与 zip 完整）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path smoke | Out-Null
+          Set-Location smoke
+          foreach ($rid in @('win-x86','win-x64','win-arm64')) {
+            Expand-Archive -Path "../dist/FolderSync_${env:APP_VERSION}_${rid}.zip" -DestinationPath $rid -Force
+            if (-not (Test-Path "$rid/FolderSync.exe")) { Write-Host "::error::$rid 包内无 FolderSync.exe"; exit 1 }
+            Write-Host "$rid 包内 exe 就位（requireAdministrator manifest 的实跑门禁归本机提权链）"
+            # fdd 单文件形态断言：exe + 平台 native 散件（libSkiaSharp 等），Unix 后端 dll 不应存在
+            $foreign = Get-ChildItem $rid -Filter *.dll | Where-Object { $_.Name -match 'X11|FreeDesktop|Tmds' }
+            if ($foreign) { Write-Host "::error::$rid 包内混入 Unix 后端: $($foreign.Name -join ',')"; exit 1 }
+          }
+          # Setup 三架构必出（此前 arm64 Setup 四版静默缺失无人知晓——存在性入断言，缺一即 fail）
+          foreach ($arch in @('x64','x86','arm64')) {
+            $setup = "../dist/FolderSync_${env:APP_VERSION}_win-${arch}_Setup.exe"
+            if (-not (Test-Path $setup)) { Write-Host "::error::缺 $setup"; exit 1 }
+            Write-Host "Setup $arch 就位: $((Get-Item $setup).Length) bytes"
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows
+          path: dist/*
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与本地一致（8.0.425 publish 项目路径隐式 restore NU1201，见 windows job 注释）
+      - name: Restore（按 RID 预 restore；linux-x86 的 IncludeGUI=false 是 restore 超集无碍；arm64 归 linux-arm64 job 原生构建）
+        shell: bash
+        run: |
+          for rid in linux-x64 linux-arm linux-x86; do
+            dotnet restore FolderSync.sln -r $rid
+          done
+      - name: Publish（x64/arm GUI + x86 CLI-only）
+        shell: bash
+        run: |
+          for rid in linux-x64 linux-arm; do
+            echo "== $rid =="
+            dotnet publish src/FolderSync.App -c Release -r $rid --self-contained -v q -o "out/$rid"
+          done
+          echo "== linux-x86（CLI-only，IncludeGUI=false；fdd——官方无 linux-x86 apphost，NETSDK1084）=="
+          dotnet publish src/FolderSync.App -c Release -r linux-x86 --self-contained false \
+            -p:IncludeGUI=false -p:UseAppHost=false -v q -o out/linux-x86
+          # 启动壳：系统 dotnet 8 驱动（linux-x86 需发行版/社区 runtime）
+          printf '#!/bin/sh\nDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec dotnet "$DIR/FolderSync.dll" "$@"\n' > out/linux-x86/FolderSync
+          chmod +x out/linux-x86/FolderSync
+      - name: tar.gz ×3
+        run: |
+          mkdir -p dist
+          for rid in linux-x64 linux-arm linux-x86; do
+            name="FolderSync_${APP_VERSION}_${rid}"
+            [ "$rid" = "linux-x86" ] && name="FolderSync_${APP_VERSION}_${rid}-cli"
+            tar -C "out/$rid" -czf "dist/${name}.tar.gz" .
+          done
+      - name: deb（amd64，dpkg-deb 打包；arm64 归 linux-arm64 job）
+        run: |
+          chmod +x packaging/linux/build-deb.sh
+          # 发布说明：packaging/release-notes/v{版本}.md 优先，无则用兜底文案（进 metainfo 供软件中心展示；
+          # 不放 docs/——docs/ 整目录被 .gitignore 排除，CI 读不到）
+          NOTES="packaging/release-notes/${APP_VERSION}.md"
+          [ -f "$NOTES" ] || NOTES="packaging/linux/default-notes.md"
+          echo "deb 发布说明来源: $NOTES"
+          ./packaging/linux/build-deb.sh "$APP_VERSION" amd64 out/linux-x64 dist/ "$NOTES"
+      - name: 分发包冒烟（x64 实跑 --run 真复制；arm/x86 异架构降级文件级；deb 结构断言）
+        shell: bash
+        run: |
+          set -e
+          chmod +x packaging/linux/smoke-tar.sh packaging/linux/smoke-deb.sh
+          ./packaging/linux/smoke-tar.sh "dist/FolderSync_${APP_VERSION}_linux-x64.tar.gz" s1 FolderSync
+          # linux-arm：x64 runner 无法直接执行 32 位 ARM apphost——降级为文件级检查
+          mkdir -p s2 && tar -xzf "dist/FolderSync_${APP_VERSION}_linux-arm.tar.gz" -C s2
+          test -f s2/FolderSync && test -x s2/FolderSync || { echo "::error::linux-arm 包缺 FolderSync 可执行"; exit 1; }
+          echo "linux-arm: 可执行就位（实跑验证归目标机）"
+          # linux-x86：fdd+无 apphost，x64 runner 无法实跑 x86 程序——降级为包内文件级检查
+          mkdir -p s4 && tar -xzf "dist/FolderSync_${APP_VERSION}_linux-x86-cli.tar.gz" -C s4
+          test -f s4/FolderSync.dll && test -x s4/FolderSync || { echo "::error::linux-x86 包缺 FolderSync.dll 或启动壳"; exit 1; }
+          echo "linux-x86-cli: dll+启动壳就位（实跑验证归目标机，需系统 dotnet 8）"
+          ./packaging/linux/smoke-deb.sh "dist/FolderSync_${APP_VERSION}_linux-amd64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist/*
+
+  # arm64 挪出交叉编译：原生 ARM64 runner 上 publish 与包内 CLI --run 实跑同架构，
+  # 把 x64 job 里「无法直接执行 arm64 包」的 warning 换成真复制断言（能构建≠能跑）。
+  linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与本地一致（见 windows job 注释）
+      - name: Restore（按 RID 预 restore）
+        shell: bash
+        run: dotnet restore FolderSync.sln -r linux-arm64
+      - name: Publish（arm64 GUI self-contained）
+        shell: bash
+        run: dotnet publish src/FolderSync.App -c Release -r linux-arm64 --self-contained -v q -o out/linux-arm64
+      - name: tar.gz
+        run: |
+          mkdir -p dist
+          tar -C out/linux-arm64 -czf "dist/FolderSync_${APP_VERSION}_linux-arm64.tar.gz" .
+      - name: deb（arm64，dpkg-deb 打包）
+        run: |
+          chmod +x packaging/linux/build-deb.sh
+          # 发布说明来源逻辑与 linux job 相同：v{版本}.md 优先，default-notes.md 兜底
+          NOTES="packaging/release-notes/${APP_VERSION}.md"
+          [ -f "$NOTES" ] || NOTES="packaging/linux/default-notes.md"
+          echo "deb 发布说明来源: $NOTES"
+          ./packaging/linux/build-deb.sh "$APP_VERSION" arm64 out/linux-arm64 dist/ "$NOTES"
+      - name: 分发包冒烟（原生同架构：CLI --run 真复制 + deb 结构断言）
+        shell: bash
+        run: |
+          set -e
+          # 不赌 ARM 镜像预装清单——显式补 sqlite3（注入任务用；已装则幂等）
+          command -v sqlite3 >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y sqlite3; }
+          chmod +x packaging/linux/smoke-tar.sh packaging/linux/smoke-deb.sh
+          ./packaging/linux/smoke-tar.sh "dist/FolderSync_${APP_VERSION}_linux-arm64.tar.gz" s1 FolderSync
+          ./packaging/linux/smoke-deb.sh "dist/FolderSync_${APP_VERSION}_linux-arm64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-arm64
+          path: dist/*
+
+  macos:
+    runs-on: macos-latest   # 原生 arm64；osx-x64 交叉编译
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.424   # 钉与本地一致（8.0.425 publish 项目路径隐式 restore NU1201，见 windows job 注释）
+      - name: Restore（按 RID 预 restore）
+        shell: bash
+        run: |
+          dotnet restore FolderSync.sln -r osx-arm64
+          dotnet restore FolderSync.sln -r osx-x64
+      - name: Publish + .app + ad-hoc 签名 + dmg ×2
+        shell: bash
+        run: |
+          chmod +x packaging/macos/build-dmg.sh
+          ./packaging/macos/build-dmg.sh "$APP_VERSION" osx-arm64 dist/
+          ./packaging/macos/build-dmg.sh "$APP_VERSION" osx-x64 dist/
+      - name: 分发包冒烟（dmg 挂载 → 包内 CLI --run 真复制）
+        shell: bash
+        run: |
+          set -ex   # -x：上一轮 3s 退 1 无输出，逐步留痕
+          dmg="dist/FolderSync_${APP_VERSION}_osx-arm64.dmg"
+          hdiutil attach "$dmg" -nobrowse -quiet   # 卷名固定 FolderSync（build-dmg.sh -volname）；-quiet 也会吞挂载表，故挂载点用固定路径
+          mnt="/Volumes/FolderSync"
+          exe="$mnt/FolderSync.app/Contents/MacOS/FolderSync"
+          test -f "$exe"
+          root=$(mktemp -d); mkdir -p "$root/data" "$root/L" "$root/R"
+          export FOLDERSYNC_DATA="$root/data"
+          echo "smoke-seed-content" > "$root/L/a.txt"
+          "$exe" --list | grep -q "共 0 个任务"
+          "$exe" --list >/dev/null
+          sqlite3 "$root/data/foldersync.db" "INSERT INTO jobs(name,left_path,right_path,direction,created_at) VALUES('smoke','$root/L','$root/R',0,datetime('now'))"
+          "$exe" --run smoke
+          grep -q "smoke-seed-content" "$root/R/a.txt"
+          echo "dmg 包内 CLI --run 真复制通过"
+          hdiutil detach "$mnt" -quiet
+          rm -rf "$root"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos
+          path: dist/*
+
+  release-draft:
+    needs: [windows, linux, linux-arm64, macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # 下载直链表格模板与手写 notes 都在仓库里，本 job 恢复 checkout（此前删 checkout 是「只组资产」
+      # 定位，现在要读 packaging/）。gh 仍显式 -R（参考#10：不依赖 .git 解析，浅克隆亦稳）
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-all
+          merge-multiple: true
+      - name: SHA-256 校验和
+        run: |
+          cd dist-all
+          sha256sum FolderSync_* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: 组 release body（手写变更 + 徽章直链下载表格；tag 与文件名中的版本同串，单占位符 __VERSION__ 通吃）
+        run: |
+          NOTES="packaging/release-notes/${APP_VERSION}.md"
+          if [ -f "$NOTES" ]; then
+            cp "$NOTES" body.md
+          else
+            printf '# FolderSync %s\n\n（本版无手写说明，变更见下方自动生成节。）\n' "$APP_VERSION" > body.md
+            echo "::warning::未找到 $NOTES，release body 头部使用兜底文案"
+          fi
+          printf '\n' >> body.md
+          sed "s|__VERSION__|${APP_VERSION}|g" packaging/release-notes/download-table.md >> body.md
+          echo "== body.md 组装完成，前 12 行预览 =="
+          head -12 body.md
+      - name: Release draft（不 publish，发布等明确指令；预发布 tag 自动标 prerelease）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # alpha.3 实锤：--notes-file 与 --generate-notes 同用是拼接（手写在前、Full Changelog 追加在后）
+          PRE=""
+          if [[ "$APP_VERSION" =~ -(alpha|beta|rc) ]]; then
+            PRE="--prerelease"
+            echo "tag 含预发布标识（alpha/beta/rc）→ --prerelease"
+          fi
+          gh release create -R deYangar/folder-sync-tool "$APP_VERSION" dist-all/* --draft --generate-notes \
+            --title "FolderSync $APP_VERSION" --notes-file body.md $PRE

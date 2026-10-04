@@ -1,0 +1,86 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FolderSync.App.ViewModels"
+        x:Class="FolderSync.App.Views.HistoryWindow"
+        x:DataType="vm:HistoryViewModel"
+        Title="运行历史" Width="900" Height="520" MinWidth="700" MinHeight="360"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="*,Auto" Margin="12">
+        <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="True"
+                  ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                  AutomationProperties.Name="运行历史列表">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="开始" Width="120">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding StartedText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="触发" Width="76">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding TriggerText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="状态" Width="76">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="复制/删除/跳过/失败" Width="130">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding CountsText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="复制量" Width="80">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding BytesText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="增量省" Width="80">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding DeltaText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="耗时" Width="60">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding DurationText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="均速" Width="80">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding SpeedText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="错误" Width="*">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:HistoryViewModel+Row">
+                        <TextBlock Text="{Binding ErrorText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,10,0,0">
+            <Button Content="打开报告" Padding="12,5" Click="OpenReport_Click"/>
+            <Button Content="失败明细" Padding="12,5" Click="OpenFailed_Click"/>
+            <Button Content="导出 CSV" Padding="12,5" Click="ExportCsv_Click"/>
+            <Button Content="刷新" Padding="12,5" Click="Refresh_Click"/>
+            <Button Content="关闭" Padding="12,5" Click="Close_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
